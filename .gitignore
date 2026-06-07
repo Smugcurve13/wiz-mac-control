@@ -1,0 +1,16 @@
+# The Xcode project is generated from project.yml by XcodeGen — never edit it
+# by hand, and don't commit it. Run `xcodegen generate` to (re)create it.
+*.xcodeproj/
+
+# Xcode / build artifacts
+xcuserdata/
+DerivedData/
+build/
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager (if added later)
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store

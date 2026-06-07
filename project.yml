@@ -1,0 +1,89 @@
+# XcodeGen spec — the committed source of truth for the Xcode project.
+# Regenerate the .xcodeproj any time with:  xcodegen generate
+#
+# Two targets:
+#   • WizControl          – the menu bar app (NON-sandboxed)
+#   • WizControlWidget    – the WidgetKit extension (sandboxed, embedded in the app)
+# Both compile everything under Shared/, so they share the WiZ networking code.
+
+name: WizControl
+
+options:
+  bundleIdPrefix: com.smugcurve13
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+# Settings applied to every target.
+settings:
+  base:
+    # ── SIGNING ──────────────────────────────────────────────────────────────
+    # Paste your personal (free) Apple ID team ID here so signing survives a
+    # `xcodegen generate`. Find it in Xcode ▸ Settings ▸ Accounts ▸ (your ID) ▸
+    # Manage Certificates, or run:  security find-identity -v -p codesigning
+    # If you leave it blank, just pick your team once in Xcode's Signing tab.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    # ── BUILD ────────────────────────────────────────────────────────────────
+    SWIFT_VERSION: "5.0"            # Swift 5 language mode (lenient concurrency)
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_HARDENED_RUNTIME: NO     # off = least friction for a local personal build
+    GENERATE_INFOPLIST_FILE: NO     # we supply Info.plist via the `info:` blocks below
+
+targets:
+  # ───────────────────────────────────────────────────────────── Menu bar app
+  WizControl:
+    type: application
+    platform: macOS
+    sources:
+      - MenuBarApp
+      - Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.smugcurve13.wizcontrol
+        PRODUCT_NAME: WiZ Control
+    info:
+      path: MenuBarApp/Info.plist
+      properties:
+        # Agent app: lives only in the menu bar, no Dock icon, no main window.
+        LSUIElement: true
+        # Text shown in the macOS "allow local network access?" prompt.
+        NSLocalNetworkUsageDescription: "WiZ Control sends commands to your smart bulb over your local network."
+        CFBundleDisplayName: WiZ Control
+    # No CODE_SIGN_ENTITLEMENTS → the app is NOT sandboxed, so LAN UDP works
+    # freely and its UserDefaults plist lands in ~/Library/Preferences where the
+    # sandboxed widget can reach it.
+    dependencies:
+      - target: WizControlWidget
+        embed: true   # bundle the widget extension inside the app's PlugIns
+
+  # ──────────────────────────────────────────────────────── Widget extension
+  WizControlWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - Widget
+      - Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.smugcurve13.wizcontrol.widget
+        PRODUCT_NAME: WizControlWidget
+    info:
+      path: Widget/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: Widget/Widget.entitlements
+      properties:
+        # Widget extensions MUST be sandboxed on macOS.
+        com.apple.security.app-sandbox: true
+        # UDP needs BOTH client (outgoing) and server (the OS can't tell one-way
+        # UDP from bidirectional, so it requires server too).
+        com.apple.security.network.client: true
+        com.apple.security.network.server: true
+        # Lets this sandboxed extension read/write the app's shared preference
+        # domain (no App Group / paid account needed).
+        com.apple.security.temporary-exception.shared-preference.read-write:
+          - WizControlShared
