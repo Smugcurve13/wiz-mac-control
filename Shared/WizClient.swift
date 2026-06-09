@@ -42,6 +42,10 @@ struct WizClient {
         _ = try await send(WizCommand.setColor(r: r, g: g, b: b), to: host, expectReply: false)
     }
 
+    func setTemperature(_ kelvin: Int, host: String) async throws {
+        _ = try await send(WizCommand.setTemperature(kelvin: kelvin), to: host, expectReply: false)
+    }
+
     /// Ask the bulb for its current state and parse the JSON reply.
     func getState(host: String) async throws -> WizState {
         guard let data = try await send(WizCommand.getPilot, to: host, expectReply: true) else {
