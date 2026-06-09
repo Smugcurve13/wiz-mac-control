@@ -1,10 +1,9 @@
 # XcodeGen spec — the committed source of truth for the Xcode project.
 # Regenerate the .xcodeproj any time with:  xcodegen generate
 #
-# Two targets:
+# One target:
 #   • WizControl          – the menu bar app (NON-sandboxed)
-#   • WizControlWidget    – the WidgetKit extension (sandboxed, embedded in the app)
-# Both compile everything under Shared/, so they share the WiZ networking code.
+# It compiles everything under Shared/ for the WiZ networking code.
 
 name: WizControl
 
@@ -52,38 +51,4 @@ targets:
         NSLocalNetworkUsageDescription: "WiZ Control sends commands to your smart bulb over your local network."
         CFBundleDisplayName: WiZ Control
     # No CODE_SIGN_ENTITLEMENTS → the app is NOT sandboxed, so LAN UDP works
-    # freely and its UserDefaults plist lands in ~/Library/Preferences where the
-    # sandboxed widget can reach it.
-    dependencies:
-      - target: WizControlWidget
-        embed: true   # bundle the widget extension inside the app's PlugIns
-
-  # ──────────────────────────────────────────────────────── Widget extension
-  WizControlWidget:
-    type: app-extension
-    platform: macOS
-    sources:
-      - Widget
-      - Shared
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.smugcurve13.wizcontrol.widget
-        PRODUCT_NAME: WizControlWidget
-    info:
-      path: Widget/Info.plist
-      properties:
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
-    entitlements:
-      path: Widget/Widget.entitlements
-      properties:
-        # Widget extensions MUST be sandboxed on macOS.
-        com.apple.security.app-sandbox: true
-        # UDP needs BOTH client (outgoing) and server (the OS can't tell one-way
-        # UDP from bidirectional, so it requires server too).
-        com.apple.security.network.client: true
-        com.apple.security.network.server: true
-        # Lets this sandboxed extension read/write the app's shared preference
-        # domain (no App Group / paid account needed).
-        com.apple.security.temporary-exception.shared-preference.read-write:
-          - WizControlShared
+    # freely and its UserDefaults plist lands in ~/Library/Preferences.

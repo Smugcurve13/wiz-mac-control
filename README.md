@@ -1,15 +1,22 @@
 # WiZ Control (native macOS)
 
-A native macOS **menu bar app** + **interactive WidgetKit widget** that controls a
+A native macOS **menu bar app** that controls a
 [WiZ](https://www.wizconnected.com/) smart bulb **directly over UDP** — no Flask
 server, no cloud. It speaks the same JSON protocol your Python app used
 (`setPilot` / `getPilot` on UDP port `38899`).
 
-- **Menu bar app:** power toggle, brightness slider, colour picker, configurable bulb IP.
-- **Widget (small + medium):** shows the bulb state and an interactive power button
-  (App Intents).
+All controls live in one panel anchored to the menu bar icon:
 
-Built with SwiftUI, WidgetKit, App Intents, and the Network framework.
+- **Power** toggle and **Brightness** slider.
+- **Colour mode:** a preset swatch grid + R/G/B sliders, rendered in-panel (so the
+  system colour picker never opens a separate window, steals focus, and dismisses
+  the panel).
+- **White mode:** a colour-temperature slider (2200–6500 K) plus **Warm / Neutral /
+  Cold** presets. A **Colour / White** switch selects the active mode — the two are
+  mutually exclusive on the bulb, and the app infers the current mode from `getPilot`.
+- Configurable bulb IP in Settings.
+
+Built with SwiftUI and the Network framework.
 
 ---
 
@@ -29,10 +36,9 @@ xcodegen generate
 open WizControl.xcodeproj
 ```
 
-In Xcode, for **both** targets (`WizControl` and `WizControlWidget`) under
-**Signing & Capabilities**, pick your team in the *Team* dropdown. To make signing
-survive future `xcodegen generate` runs, paste your Team ID into `DEVELOPMENT_TEAM`
-in [`project.yml`](project.yml) instead.
+In Xcode, select the `WizControl` target under **Signing & Capabilities** and pick
+your team in the *Team* dropdown. To make signing survive future `xcodegen generate`
+runs, paste your Team ID into `DEVELOPMENT_TEAM` in [`project.yml`](project.yml) instead.
 
 Then **Run** (⌘R) the `WizControl` scheme. The app appears as a 💡 in the menu bar
 (no Dock icon — it's an `LSUIElement` agent app).
@@ -47,26 +53,27 @@ Then **Run** (⌘R) the `WizControl` scheme. The app appears as a 💡 in the me
    `192.168.1.18`) and click **Test connection**.
 2. The first time the app sends a packet, macOS asks to **allow local network
    access** — click *Allow*. (This is required to reach the bulb on your LAN.)
-3. Toggle power, drag brightness, pick a colour — the bulb responds live.
-4. Add the widget: right-click the desktop / open Notification Center → **Edit
-   Widgets** → find **WiZ Light** → add the small or medium size.
+3. Toggle power and drag brightness. Under **Colour**, tap a swatch or drag the
+   R/G/B sliders; switch to **White** to set a colour temperature (slider or the
+   Warm/Neutral/Cold presets). The bulb responds live.
 
 ## How it's organized
 
 ```
-Shared/      WiZ networking + models, compiled into BOTH targets
+Shared/      WiZ networking + models
   WizClient.swift    UDP send/receive over NWConnection (async/await)
-  WizCommand.swift   builds setPilot/getPilot JSON
-  WizState.swift     Codable bulb state + getPilot reply parsing
-  SharedStore.swift  app↔widget bridge (shared UserDefaults suite)
-MenuBarApp/  the menu bar app (non-sandboxed)
-Widget/      the WidgetKit extension (sandboxed) + TogglePowerIntent
+  WizCommand.swift   builds setPilot/getPilot JSON (state, dimming, r/g/b, temp)
+  WizState.swift     Codable bulb state (+ mode/temp) + getPilot reply parsing
+  SharedStore.swift  bulb IP + cached last state in a UserDefaults suite
+MenuBarApp/  the menu bar app (non-sandboxed): AppModel + the SwiftUI panel
 project.yml  the source of truth for the Xcode project (run xcodegen to regen)
 ```
 
-The menu bar app is the source of truth: it polls `getPilot`, drives the UI, writes
-`{bulbIP, lastState}` to a shared `UserDefaults` suite, and reloads the widget. The
-widget renders that cached state and, on a tap, sends `setPilot` over UDP itself.
+The app polls `getPilot` when the panel opens, drives the UI from an `AppModel`
+(`ObservableObject`), and caches `{bulbIP, lastState}` in a `UserDefaults` suite so
+the panel looks right instantly at the next launch. Each control sends a `setPilot`
+datagram over UDP — brightness/colour/temp commit on slider release to avoid
+flooding the bulb mid-drag.
 
 ## WiZ protocol reference
 
@@ -77,29 +84,23 @@ UTF-8 JSON datagrams to `bulbIP:38899`:
 | Power       | `{"method":"setPilot","params":{"state":true}}` |
 | Brightness  | `{"method":"setPilot","params":{"dimming":50}}` *(10–100)* |
 | Colour      | `{"method":"setPilot","params":{"r":255,"g":0,"b":0}}` *(0–255)* |
+| White temp  | `{"method":"setPilot","params":{"temp":2700}}` *(2200–6500 K)* |
 | Read state  | `{"method":"getPilot","params":{}}` |
 
-Note: RGB colour and white `temp` are mutually exclusive on WiZ bulbs.
+Note: RGB colour and white `temp` are **mutually exclusive** — sending one clears
+the other. The app tracks which mode is active and reflects it in the Colour/White
+switch.
 
 ## Free Apple ID caveats
 
 - **7-day expiry:** apps signed with a free personal team stop launching after ~7
   days. Just re-run from Xcode to refresh the signature.
-- **No App Groups:** App Groups need a paid account, so the app↔widget bridge uses
-  a shared-preference *temporary-exception* entitlement instead (see
-  `Widget/Widget.entitlements`). If you later go paid, switch `SharedStore.suiteName`
-  to a `group.*` id, add the App Group capability, and the code is unchanged.
-- **Widget networking:** sending LAN UDP from a sandboxed widget extension can be
-  blocked by local-network privacy (the grant is per-process). The menu bar app's
-  control is rock-solid; the widget toggle is best-effort. If it misbehaves, the
-  fallback is to have the widget post a Darwin notification the running app handles
-  (not wired up yet).
 
 ## Troubleshooting
 
 - **Bulb doesn't respond:** confirm the Mac and bulb are on the same Wi-Fi, the IP
   is correct, and you allowed local network access (System Settings ▸ Privacy &
   Security ▸ Local Network ▸ WiZ Control).
-- **Widget shows "set your bulb's IP":** open the app and save an IP first; the
-  widget reads it from shared storage.
-- **Signing errors:** select your team for both targets in Xcode.
+- **Signing errors:** select your team for the `WizControl` target in Xcode.
+</content>
+</invoke>

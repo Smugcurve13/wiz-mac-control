@@ -1,21 +1,17 @@
 import Foundation
 
-/// The bridge between the menu bar app and the widget extension.
+/// The app's small persistence layer: the configurable bulb IP and a cached
+/// snapshot of the last known bulb state.
 ///
-/// They are two separate processes that can't see each other's memory, so they
-/// share data through a named `UserDefaults` "suite" — a small plist that, for
-/// the (non-sandboxed) app, lives at `~/Library/Preferences/WizControlShared.plist`.
-/// The sandboxed widget reaches that same file via the
-/// `com.apple.security.temporary-exception.shared-preference.read-write`
-/// entitlement (see project.yml). Same API on both sides.
-///
-/// Upgrade path: if you ever get a paid Apple Developer account, change
-/// `suiteName` to an App Group id (e.g. "group.com.smugcurve13.wizcontrol") and
-/// add the App Group capability — the rest of this code stays identical.
+/// It uses a named `UserDefaults` "suite" — a plist that lives at
+/// `~/Library/Preferences/WizControlShared.plist`. (The suite name is kept from
+/// when a widget extension also read this file; leaving it unchanged means your
+/// previously-saved bulb IP still loads. Plain `.standard` defaults would work
+/// equally well now that there's a single process.)
 struct SharedStore {
 
-    /// Must be the SAME string in the app and the widget (and must match the
-    /// value in the widget's shared-preference entitlement).
+    /// The UserDefaults suite backing this store. Kept stable so existing saved
+    /// values (e.g. your bulb IP) survive across launches.
     static let suiteName = "WizControlShared"
 
     private let defaults: UserDefaults
